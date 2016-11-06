@@ -20,6 +20,7 @@ class queryParser():
 	__featuresDict = dict()
 	__featuresMapDict = dict()
 	__isKeywordComparePresent = False
+	__isKeywordRangePresent = False
 
 	# Initilize the variables
 	def __init__(self):
@@ -71,13 +72,24 @@ class queryParser():
 
 	def removeStopWords(self, tokens):
 		stopWordList = {'what', 'is', 'the', '?', '.', 'series', 'mobile', 'phones', 'list', 'between', 'among', 'in', 'terms', 'of', 'and', 'two', ''}
-		compareDict = {'compare', 'difference', 'similarity', 'different', 'better', 'good', 'bad'}
+		compareDict = {'compare', 'difference', 'similarity', 'different', 'better', 'good', 'bad', 'between'}
+		rangeDict = {'range', 'below', 'under', 'above', 'greater'}
 		lefttokens = list()
+		isNumberPresent = False
 		for token in tokens:
+			if token.isdigit():
+				isNumberPresent = True
 			if token in compareDict:
 				self.__isKeywordComparePresent = True
+				lefttokens.append(token)
+			elif token in rangeDict:
+				self.__isKeywordRangePresent = True
 			elif token not in stopWordList:
 				lefttokens.append(token)
+
+		if isNumberPresent and self.__isKeywordComparePresent:
+			self.__isKeywordComparePresent = False
+			self.__isKeywordRangePresent = True
 
 		# Assign the left tokens to the tokens
 		return lefttokens
@@ -90,8 +102,11 @@ class queryParser():
 		# Convert the query to the lowercases
 		query = query.lower()
 
+		# Store Original Query
+		originalQuery = query
+
 		# Tokenize the query
-		tokens = tokenize(query, ' ')
+		tokens = tokenize(query, ' ')		
 
 		# Remove the stop words
 		tokens = self.removeStopWords(tokens)
@@ -115,48 +130,89 @@ class queryParser():
 
 		# Now get the phones list from the tokens 
 		UIDList = set()
-		gram = 6
-		while gram > 0 and len(tokens) > 0:			
-			# make the N - grams model and search	
-			flag = 0
-			for j in range(len(tokens) - gram + 1):
-				currentString = ' '.join(tokens[j: j + gram])
-				if self.__titleDict.get(currentString):
-					UIDList = UIDList.union(self.__titleDict[currentString])
-					flag = 1
-					# delete the token from the tokens
-					count = 0
-					for k in range(j, j + gram, 1):
-						if k - count >= len(tokens):
-							break
-						tokens.pop(k - count)
-						count = count + 1
-					break
 
-			if flag == 0:
-				gram = gram - 1
+		# If the range query is present
+		if self.__isKeywordRangePresent:
 
-		if len(featureToGetFromDB) == 0:
-			# Show all features
-			for uid in UIDList:
-				phoneRecord = self.__collection.find_one({"uid":uid})
-				print (phoneRecord)
+			# Get the price range out of the query
+			numbers = list()
+			greaterThan = False
+			lessThan = False
+			between = False
+			for token in originalQuery.split():
+				if token.isdigit():
+					numbers.append(int(token))
+				elif token == 'above' or token == 'greater':
+					greaterThan = True
+				elif token == 'below' or token == 'smaller' or token == "lesser" or token == "under":
+					lessThan = True
+				elif token == "between":
+					between = True
+
+			results = list()
+			numbers.sort()
+
+			if greaterThan:
+				cursor = self.__collection.find({"misc.Price": { "$gt" : numbers[0]}}).sort( [("misc.Price", -1)] ).limit(10)
+				for item in cursor:
+					results.append(item)
+
+			elif lessThan:			
+				cursor = self.__collection.find({"misc.Price": { "$lt" : numbers[0]}}).sort( [("misc.Price", -1)] ).limit(10)
+				for item in cursor:
+					results.append(item)
+
+			elif between:
+				cursor = self.__collection.find({"misc.Price": { "$gt" : numbers[0], "$lt" : numbers[1]}}).sort( [("misc.Price", -1)] ).limit(10)
+				for item in cursor:
+					results.append(item)
+
+			for result in results:
+				print ("Title : ", result['Title'], " Price : ", result['misc']['Price'])
+
 		else:
-			print ("Here what I have found")
-			for uid in UIDList:
-				phoneRecord = self.__collection.find_one({"uid":uid})
-				# print the title first
-				print (phoneRecord['Title'])
-				# If no feature is specified then what to do
-				for feature in featureToGetFromDB:
-					print (feature, end = ' ')
-					try:
-						print (phoneRecord[self.__featuresMapDict[feature]][feature], ' ')
-					except Exception as e:
+			gram = 6
+			while gram > 0 and len(tokens) > 0:			
+				# make the N - grams model and search	
+				flag = 0
+				for j in range(len(tokens) - gram + 1):
+					currentString = ' '.join(tokens[j: j + gram])
+					if self.__titleDict.get(currentString):
+						UIDList = UIDList.union(self.__titleDict[currentString])
+						flag = 1
+						# delete the token from the tokens
+						count = 0
+						for k in range(j, j + gram, 1):
+							if k - count >= len(tokens):
+								break
+							tokens.pop(k - count)
+							count = count + 1
+						break
+
+				if flag == 0:
+					gram = gram - 1
+
+			if len(featureToGetFromDB) == 0:
+				# Show all features
+				for uid in UIDList:
+					phoneRecord = self.__collection.find_one({"uid":uid})
+					print (phoneRecord)
+			else:
+				print ("Here what I have found")
+				for uid in UIDList:
+					phoneRecord = self.__collection.find_one({"uid":uid})
+					# print the title first
+					print (phoneRecord['Title'])
+					# If no feature is specified then what to do
+					for feature in featureToGetFromDB:
+						print (feature, end = ' ')
 						try:
-							print ("From here", phoneRecord[feature], ' ')
+							print (phoneRecord[self.__featuresMapDict[feature]][feature], ' ')
 						except Exception as e:
-							print ("No such feature exists...")
+							try:
+								print ("From here", phoneRecord[feature], ' ')
+							except Exception as e:
+								print ("No such feature exists...")
 
 # Main Function
 if __name__ == '__main__':
