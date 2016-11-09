@@ -234,24 +234,24 @@ class queryParser():
 			print (phoneRecord['Title'])
 			# If no feature is specified then what to do
 			for feature in featureToGetFromDB:
-				result.append("""<tr width = '15%'><td style="width:35%;padding-left:15px;background-color: #B0E0E6; padding: 8px;border: 1px solid #ddd;">""")
+				resultData += ("""<tr width = '15%'><td style="width:35%;padding-left:15px;background-color: #B0E0E6; padding: 8px;border: 1px solid #ddd;">""")
 				print (feature, )
-				result.append(feature + "</td>")
+				resultData += (feature + "</td>")
 				try:
-					print (phoneRecord[self.__featuresMapDict[feature]][feature], ' ')
-					result.append("""<td style="padding-left:10px">""" + phoneRecord[self.__featuresMapDict[feature]][feature])
-					result.append("""</td></tr>""")
+					print phoneRecord[self.__featuresMapDict[feature]][feature]
+					resultData += ("""<td style="padding-left:10px">""" + str(phoneRecord[self.__featuresMapDict[feature]][feature]))
+					resultData += ("""</td>""")
 				except Exception as e:
 					try:
-						result.append("""<td style="padding-left:10px">""" +phoneRecord[feature])
-						result.append("""</td></tr>""")
+						resultData += ("""<td style="padding-left:10px">""" + str(phoneRecord[feature]))
+						resultData += ("""</td>""")
 						print ("From here", phoneRecord[feature], ' ')
 					except Exception as e:
 						print ("No such feature exists...")
+				resultData += ("</tr>")
+		resultData += ("""</table>""")
 
-
-
-		resultData.append("""</table>""")
+		print resultData
 
 # Main Function
 if __name__ == '__main__':
