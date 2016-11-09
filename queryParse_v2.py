@@ -106,6 +106,33 @@ class queryParser():
 		# Remove the stop words
 		tokens = self.removeStopWords(tokens)
 
+		# Extract feature words from the query
+		featureToGetFromDB = list()
+		lefttokens = list()
+		for token in tokens:
+			if token in self.__featuresDict:
+				featureToGetFromDB.append(self.__featuresDict[token])
+			else:
+				lefttokens.append(token)
+
+		# If the featues are null show the few specific features
+		# I will show, Price, Released, Platform OS, Memory Internal, Camera- primary, secondary, battery
+		if len(featureToGetFromDB) == 0:
+			featureToGetFromDB.append('Price')
+			featureToGetFromDB.append('status')
+			featureToGetFromDB.append('os')
+			featureToGetFromDB.append('internal')
+			featureToGetFromDB.append('primary')
+			featureToGetFromDB.append('secondary')
+			featureToGetFromDB.append('battery')
+
+		# Assign the left tokens to the tokens
+		tokens = lefttokens
+
+		print ("Extracted Features : ", featureToGetFromDB)
+
+		print ("Now Left Tokens are : ", tokens)
+
 		# Now get the phones list from the tokens 
 		# while matching unigrams don't match the unigrams with the digits as it will yeild the bad result
 		UIDList = set()
@@ -140,32 +167,7 @@ class queryParser():
 
 		print ("Phones found are :",UIDList)		
 
-		# Extract feature words from the query
-		featureToGetFromDB = list()
-		lefttokens = list()
-		for token in tokens:
-			if token in self.__featuresDict:
-				featureToGetFromDB.append(self.__featuresDict[token])
-			else:
-				lefttokens.append(token)
-
-		# If the featues are null show the few specific features
-		# I will show, Price, Released, Platform OS, Memory Internal, Camera- primary, secondary, battery
-		if len(featureToGetFromDB) == 0:
-			featureToGetFromDB.append('Price')
-			featureToGetFromDB.append('status')
-			featureToGetFromDB.append('os')
-			featureToGetFromDB.append('internal')
-			featureToGetFromDB.append('primary')
-			featureToGetFromDB.append('secondary')
-			featureToGetFromDB.append('battery')
-
-		# Assign the left tokens to the tokens
-		tokens = lefttokens
-
-		print ("Extracted Features : ", featureToGetFromDB)
-
-		print ("Now Left Tokens are : ", tokens)
+	
 
 		resultData = """<table style="solid #ddd; font-family: Trebuchet MS, Arial, Helvetica, sans-serif;
 						padding: 5px;border: 1px solid #ddd; border-collapse: collapse; border-radius: 25px;
@@ -215,17 +217,17 @@ class queryParser():
 			if greaterThan:
 				cursor = self.__collection.find({"misc.Price": { "$gt" : numbers[0]}}).sort( [("misc.Price", -1)] ).limit(10)
 				for item in cursor:
-					UIDList.append(item["uid"])
+					UIDList.add(item["uid"])
 
 			elif lessThan:			
 				cursor = self.__collection.find({"misc.Price": { "$lt" : numbers[0]}}).sort( [("misc.Price", -1)] ).limit(10)
 				for item in cursor:
-					UIDList.append(item["uid"])
+					UIDList.add(item["uid"])
 
 			elif between:
 				cursor = self.__collection.find({"misc.Price": { "$gt" : numbers[0], "$lt" : numbers[1]}}).sort( [("misc.Price", -1)] ).limit(10)
 				for item in cursor:
-					UIDList.append(item["uid"])			
+					UIDList.add(item["uid"])
 
 		print ("Here what I have found")
 		for uid in UIDList:
