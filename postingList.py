@@ -59,7 +59,7 @@ def makeLists(field):
 def saveToPickle(fileName, dictionary):
 	# Load the dictionary 
 	with open('PickleFiles/' + fileName + '.pickle', 'wb') as f:
-		pickle.dump(dictionary, f)	
+		pickle.dump(dictionary, f, protocol=2)	
 
 # Main Function
 if __name__ == '__main__':

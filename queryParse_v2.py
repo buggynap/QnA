@@ -19,6 +19,9 @@ class queryParser():
 	__titleDict = dict()
 	__featuresDict = dict()
 	__featuresMapDict = dict()
+	__stopWordList = dict()
+	__compareDict = dict()
+	__rangeDict = dict()
 	__isKeywordComparePresent = False
 	__isKeywordRangePresent = False
 
@@ -52,6 +55,7 @@ class queryParser():
 								"technology":"technology", "2g":"2gbands", "speed":"speed", "4g":"4gbands", "os":"os", "gpu":"gpu",
 								"cpu":"cpu", "chipset":"chipset", "secondary":"secondary", "video":"video", "primary":"primary",
 								"features":"features", "screen" : "display"}
+		# Nested feature mapping dictionary
 		self.__featuresMapDict = {"usb":"comms","gps":"comms","wlan":"comms","radio":"comms","bluetooth":"comms","multitouch":"display",
 								"type":"display","resolution":"display","protection":"display","size":"display","weight":"body",
 								"sim":"body","dimensions":"body","batterylife":"tests","performance":"tests","loudspeaker":"sound",
@@ -61,6 +65,13 @@ class queryParser():
 								"java":"features","messaging":"features","sensors":"features","3gbands":"network","technology":"network",
 								"2gbands":"network","speed":"network","4gbands":"network","os":"platform","gpu":"platform","cpu":"platform",
 								"chipset":"platform","secondary":"camera","video":"camera","primary":"camera","features":"camera"}
+		# Stop words dictionary
+		self.__stopWordList = {'what', 'is', 'the', '?', '.', 'series', 'mobile', 'phones', 'list', 'between', 'among', 'in', 'terms', 
+								'of', 'and', 'two', '', 'than', 'how'}
+		# Compare dictionary
+		self.__compareDict = {'compare', 'difference', 'similarity', 'different', 'better', 'good', 'bad', 'between'}
+		# range dictionary
+		self.__rangeDict = {'range', 'below', 'under', 'above', 'greater'}
 
 		# Load the dictionaries
 		self.loadDictFromPickle()
@@ -71,27 +82,10 @@ class queryParser():
 			self.__titleDict = pickle.load(f)
 
 	def removeStopWords(self, tokens):
-		stopWordList = {'what', 'is', 'the', '?', '.', 'series', 'mobile', 'phones', 'list', 'between', 'among', 'in', 'terms', 'of', 'and', 'two', ''}
-		compareDict = {'compare', 'difference', 'similarity', 'different', 'better', 'good', 'bad', 'between'}
-		rangeDict = {'range', 'below', 'under', 'above', 'greater'}
 		lefttokens = list()
-		isNumberPresent = False
 		for token in tokens:
-			if token.isdigit():
-				isNumberPresent = True
-			if token in compareDict:
-				self.__isKeywordComparePresent = True
-				lefttokens.append(token)
-			elif token in rangeDict:
-				self.__isKeywordRangePresent = True
-			elif token not in stopWordList:
-				lefttokens.append(token)
-
-		if isNumberPresent and self.__isKeywordComparePresent:
-			self.__isKeywordComparePresent = False
-			self.__isKeywordRangePresent = True
-
-		# Assign the left tokens to the tokens
+			if token not in self.__stopWordList:
+				lefttokens.append(token)		
 		return lefttokens
 	
 	def processQuery(self, query):
@@ -100,7 +94,6 @@ class queryParser():
 		self.__isKeywordComparePresent = False
 		self.__isKeywordRangePresent = False
 
-
 		# Convert the query to the lowercases
 		query = query.lower()
 
@@ -108,30 +101,95 @@ class queryParser():
 		originalQuery = query
 
 		# Tokenize the query
-		tokens = tokenize(query, ' ')		
+		tokens = tokenize(query, ' ')
 
 		# Remove the stop words
 		tokens = self.removeStopWords(tokens)
 
-		print ("Tokens are : ", tokens)
+		# Now get the phones list from the tokens 
+		# while matching unigrams don't match the unigrams with the digits as it will yeild the bad result
+		UIDList = set()
+		gram = 6
+		while gram > 0 and len(tokens) > 0:			
+			# make the N - grams model and search			
+			flag = 0
+			for j in range(len(tokens) - gram + 1):
+				'''
+					If we are left with the unigram then check if it is digit or not, coz as said earlier 
+					matching just digits against the titles won't yeild the better result
+				'''
+				if gram == 1 and tokens[j].isdigit():
+					continue
+				currentString = ' '.join(tokens[j: j + gram])
+				print (gram, currentString)
+
+				if self.__titleDict.get(currentString):
+					UIDList = UIDList.union(self.__titleDict[currentString])
+					flag = 1
+					# delete the token from the tokens
+					count = 0
+					for k in range(j, j + gram, 1):
+						if k - count >= len(tokens):
+							break
+						tokens.pop(k - count)
+						count = count + 1
+					break
+
+			if flag == 0:
+				gram = gram - 1
+
+		print ("Phones found are :",UIDList)		
 
 		# Extract feature words from the query
 		featureToGetFromDB = list()
 		lefttokens = list()
 		for token in tokens:
 			if token in self.__featuresDict:
-				featureToGetFromDB.append(self.__featuresDict[token])				
+				featureToGetFromDB.append(self.__featuresDict[token])
 			else:
 				lefttokens.append(token)
+
+		# If the featues are null show the few specific features
+		# I will show, Price, Released, Platform OS, Memory Internal, Camera- primary, secondary, battery
+		if len(featureToGetFromDB) == 0:
+			featureToGetFromDB.append('Price')
+			featureToGetFromDB.append('status')
+			featureToGetFromDB.append('os')
+			featureToGetFromDB.append('internal')
+			featureToGetFromDB.append('primary')
+			featureToGetFromDB.append('secondary')
+			featureToGetFromDB.append('battery')
 
 		# Assign the left tokens to the tokens
 		tokens = lefttokens
 
 		print ("Extracted Features : ", featureToGetFromDB)
-		print ("Tokens are : ", tokens)
 
-		# Now get the phones list from the tokens 
-		UIDList = set()
+		print ("Now Left Tokens are : ", tokens)
+
+		resultData = """<table style="solid #ddd; font-family: Trebuchet MS, Arial, Helvetica, sans-serif;
+						padding: 5px;border: 1px solid #ddd; border-collapse: collapse; border-radius: 25px;
+						border-collapse:separate; border:solid black 1px;border-radius:6px;-moz-border-radius:6px;
+    					border-color:B0E0E6">"""
+
+		# Now check with left keywords, whether the query is range query or compare query
+
+		# How to check the compare query
+		lefttokens = list()
+		for token in tokens:
+			if token in self.__compareDict:
+				self.__isKeywordComparePresent = True
+			elif token in self.__rangeDict	:
+				self.__isKeywordRangePresent = True
+				lefttokens.append(token)
+			else:
+				lefttokens.append(token)
+
+		# Assign the remaning tokens to the tokens so that we can use it as required		
+		tokens = lefttokens
+
+		print ("self.__isKeywordRangePresent ", self.__isKeywordRangePresent, "self.__isKeywordComparePresent ", self.__isKeywordComparePresent)
+		print ("Now Left Tokens are : ", tokens)
 
 		# If the range query is present
 		if self.__isKeywordRangePresent:
@@ -157,64 +215,43 @@ class queryParser():
 			if greaterThan:
 				cursor = self.__collection.find({"misc.Price": { "$gt" : numbers[0]}}).sort( [("misc.Price", -1)] ).limit(10)
 				for item in cursor:
-					results.append(item)
+					UIDList.append(item["uid"])
 
 			elif lessThan:			
 				cursor = self.__collection.find({"misc.Price": { "$lt" : numbers[0]}}).sort( [("misc.Price", -1)] ).limit(10)
 				for item in cursor:
-					results.append(item)
+					UIDList.append(item["uid"])
 
 			elif between:
 				cursor = self.__collection.find({"misc.Price": { "$gt" : numbers[0], "$lt" : numbers[1]}}).sort( [("misc.Price", -1)] ).limit(10)
 				for item in cursor:
-					results.append(item)
+					UIDList.append(item["uid"])			
 
-			for result in results:
-				print ("Title : ", result['Title'], " Price : ", result['misc']['Price'])
+		print ("Here what I have found")
+		for uid in UIDList:
+			phoneRecord = self.__collection.find_one({"uid":uid})
+			# print the title first
+			print (phoneRecord['Title'])
+			# If no feature is specified then what to do
+			for feature in featureToGetFromDB:
+				result.append("""<tr width = '15%'><td style="width:35%;padding-left:15px;background-color: #B0E0E6; padding: 8px;border: 1px solid #ddd;">""")
+				print (feature, )
+				result.append(feature + "</td>")
+				try:
+					print (phoneRecord[self.__featuresMapDict[feature]][feature], ' ')
+					result.append("""<td style="padding-left:10px">""" + phoneRecord[self.__featuresMapDict[feature]][feature])
+					result.append("""</td></tr>""")
+				except Exception as e:
+					try:
+						result.append("""<td style="padding-left:10px">""" +phoneRecord[feature])
+						result.append("""</td></tr>""")
+						print ("From here", phoneRecord[feature], ' ')
+					except Exception as e:
+						print ("No such feature exists...")
 
-		else:
-			gram = 6
-			while gram > 0 and len(tokens) > 0:			
-				# make the N - grams model and search	
-				flag = 0
-				for j in range(len(tokens) - gram + 1):
-					currentString = ' '.join(tokens[j: j + gram])
-					if self.__titleDict.get(currentString):
-						UIDList = UIDList.union(self.__titleDict[currentString])
-						flag = 1
-						# delete the token from the tokens
-						count = 0
-						for k in range(j, j + gram, 1):
-							if k - count >= len(tokens):
-								break
-							tokens.pop(k - count)
-							count = count + 1
-						break
 
-				if flag == 0:
-					gram = gram - 1
 
-			if len(featureToGetFromDB) == 0:
-				# Show all features
-				for uid in UIDList:
-					phoneRecord = self.__collection.find_one({"uid":uid})
-					print (phoneRecord)
-			else:
-				print ("Here what I have found")
-				for uid in UIDList:
-					phoneRecord = self.__collection.find_one({"uid":uid})
-					# print the title first
-					print (phoneRecord['Title'])
-					# If no feature is specified then what to do
-					for feature in featureToGetFromDB:
-						print (feature, )
-						try:
-							print (phoneRecord[self.__featuresMapDict[feature]][feature], ' ')
-						except Exception as e:
-							try:
-								print ("From here", phoneRecord[feature], ' ')
-							except Exception as e:
-								print ("No such feature exists...")
+		resultData.append("""</table>""")
 
 # Main Function
 if __name__ == '__main__':
